@@ -1,0 +1,27 @@
+name: KR data probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pandas yfinance pykrx
+      - name: probe
+        working-directory: crawler
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python -u run.py j14
