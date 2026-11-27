@@ -1,0 +1,42 @@
+name: KR flow
+
+on:
+  schedule:
+    - cron: '20 7 * * 1-5'
+    - cron: '30 9 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 전 종목, test 입력 시 15개만 시험'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  flow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: KR flow
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j7 "${MODE}"
