@@ -1,0 +1,41 @@
+name: KR theme
+
+on:
+  schedule:
+    - cron: '30 21 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 전체 저장, test 입력 시 5개 테마만 시험(저장 안 함)'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  theme:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: Collect
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j16 "${MODE}"
