@@ -1,0 +1,56 @@
+name: StockRadar 자동 수집
+
+on:
+  schedule:
+    - cron: '*/5 9-23 * * *'
+    - cron: '*/5 0-1 * * *'
+    - cron: '*/30 2-8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: |
+          pip install pymysql yfinance requests anthropic pandas numpy schedule pycryptodome
+
+      - name: config.py 생성
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {
+              'host': '${{ secrets.DB_HOST }}',
+              'user': '${{ secrets.DB_USER }}',
+              'password': '${{ secrets.DB_PASS }}',
+              'database': '${{ secrets.DB_NAME }}',
+              'charset': 'utf8mb4',
+              'port': 3306,
+          }
+          CLAUDE_API_KEY = '${{ secrets.CLAUDE_API_KEY }}'
+          REDDIT = {
+              'client_id': '',
+              'client_secret': '',
+              'user_agent': 'StockRadar/1.0',
+          }
+          MAX_STOCKS = 500
+          PYEOF
+
+      - name: 급등 탐지
+        working-directory: crawler
+        run: python -u run.py j17 surge
