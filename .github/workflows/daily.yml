@@ -1,0 +1,91 @@
+name: StockRadar 일일 수집
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '테스트용 종목 수 제한 (0 = 전체)'
+        required: false
+        default: '0'
+      job:
+        description: '실행할 작업 (daily = 전체, insider = 내부자만, value = 저평가만)'
+        required: false
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - insider
+          - value
+      insider_days:
+        description: '내부자 거래 조회 기간(일). 평소 10, 처음 채울 때만 120'
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      STOCKRADAR_LIMIT: ${{ github.event.inputs.limit || '0' }}
+      PYTHONWARNINGS: ignore
+      STOCKRADAR_INSIDER_DAYS: ${{ github.event.inputs.insider_days || '10' }}
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: |
+          pip install pymysql yfinance requests anthropic pandas numpy schedule pycryptodome
+
+      - name: config.py 생성
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {
+              'host': '${{ secrets.DB_HOST }}',
+              'user': '${{ secrets.DB_USER }}',
+              'password': '${{ secrets.DB_PASS }}',
+              'database': '${{ secrets.DB_NAME }}',
+              'charset': 'utf8mb4',
+              'port': 3306,
+          }
+          CLAUDE_API_KEY = '${{ secrets.CLAUDE_API_KEY }}'
+          REDDIT = {
+              'client_id': '',
+              'client_secret': '',
+              'user_agent': 'StockRadar/1.0',
+          }
+          MAX_STOCKS = 500
+          PYEOF
+
+      - name: 서버 연결 확인 (실패하면 여기서 중단)
+        working-directory: crawler
+        run: python -u run.py j20
+
+      - name: 일일 수집
+        working-directory: crawler
+        run: python -u run.py j17 ${{ github.event.inputs.job || 'daily' }}
+
+      - name: 실패 알림 (텔레그램)
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -n "$TG_TOKEN" ] && [ -n "$TG_CHAT" ]; then
+            curl -s -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" -d chat_id="$TG_CHAT" --data-urlencode "text=StockRadar daily run FAILED: $RUN_URL" > /dev/null
+          fi
