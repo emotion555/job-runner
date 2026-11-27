@@ -1,0 +1,47 @@
+name: Alert push
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 새 알림 전송, test 입력 시 연결 시험 메시지 1통'
+        default: ''
+
+concurrency:
+  group: alert-push
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: Alert push
+        working-directory: crawler
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j1 ${MODE}
