@@ -1,0 +1,46 @@
+name: US live
+
+on:
+  schedule:
+    - cron: '*/15 8-23 * * 1-5'
+    - cron: '*/15 0-1 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 실제 수집, test 입력 시 30종목만 시험'
+        default: ''
+
+concurrency:
+  group: uslive
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome yfinance pandas numpy
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: Collect
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j22 "${MODE}"
