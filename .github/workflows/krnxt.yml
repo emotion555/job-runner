@@ -1,0 +1,49 @@
+name: KR NXT live
+
+on:
+  schedule:
+    - cron: '28 6 * * 1-5'
+    - cron: '50 6 * * 1-5'
+    - cron: '20 7 * * 1-5'
+    - cron: '50 7 * * 1-5'
+    - cron: '20 8 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 실시간 수집(20:02 까지), test 입력 시 한 번만 시험'
+        default: ''
+
+concurrency:
+  group: krnxt
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  nxt:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 290
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: Collect
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j10 "${MODE}"
