@@ -1,0 +1,42 @@
+name: KR holders
+
+on:
+  schedule:
+    - cron: '40 11 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 전 종목, test 입력 시 20개만 시험, 종목코드 6자리 입력 시 그 종목만'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  holders:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: KR holders
+        working-directory: crawler
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j9 "${MODE}"
