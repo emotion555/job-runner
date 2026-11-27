@@ -1,0 +1,66 @@
+name: StockRadar 프리장·애프터 초동 급등 알림
+
+on:
+  schedule:
+    - cron: '*/5 9-23 * * 1-5'
+    - cron: '*/5 0-1 * * 2-6'
+  workflow_dispatch:
+
+concurrency:
+  group: extalert
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  extalert:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PYTHONWARNINGS: ignore
+      TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: |
+          pip install pymysql yfinance requests anthropic pandas numpy schedule pycryptodome
+
+      - name: 이미 보낸 알림 기록 복원
+        uses: actions/cache@v4
+        with:
+          path: crawler/ext_state.json
+          key: ext-state-${{ github.run_id }}
+          restore-keys: |
+            ext-state-
+
+      - name: config.py 생성
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {
+              'host': '${{ secrets.DB_HOST }}',
+              'user': '${{ secrets.DB_USER }}',
+              'password': '${{ secrets.DB_PASS }}',
+              'database': '${{ secrets.DB_NAME }}',
+              'charset': 'utf8mb4',
+              'port': 3306,
+          }
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+
+      - name: 초동 급등 스캔 + 알림
+        working-directory: crawler
+        run: python -u run.py j17 extalert
