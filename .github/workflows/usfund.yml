@@ -1,0 +1,41 @@
+name: US fund
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '비워두면 전 종목(약 5분), test 입력 시 50개만 시험'
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  fund:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: US fund
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j21 "${MODE}"
