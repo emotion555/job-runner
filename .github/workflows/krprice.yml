@@ -1,0 +1,42 @@
+name: KR prices
+
+on:
+  schedule:
+    - cron: '30 1,3,5 * * 1-5'
+    - cron: '40 7 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '전 종목은 all (그대로 두세요). 60개만 시험하려면 test'
+        default: 'all'
+
+permissions:
+  contents: read
+
+jobs:
+  price:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: emotion555/stockradar
+          token: ${{ secrets.SR_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: packages
+        run: pip install requests pycryptodome yfinance pandas
+      - name: config.py
+        run: |
+          cat > crawler/config.py << 'PYEOF'
+          DB = {'host': '', 'user': '', 'password': '', 'database': '', 'charset': 'utf8mb4', 'port': 3306}
+          CLAUDE_API_KEY = ''
+          REDDIT = {'client_id': '', 'client_secret': '', 'user_agent': 'StockRadar/1.0'}
+          MAX_STOCKS = 500
+          PYEOF
+      - name: KR prices
+        working-directory: crawler
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+        run: python -u run.py j13 "${MODE}"
